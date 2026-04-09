@@ -13,7 +13,7 @@ Aplikasi web untuk pemesanan lapangan padel dibangun dengan PHP dan MySQL.
 - `riwayat.php` - Halaman riwayat
 - `config.php` - Konfigurasi database
 - `functions.php` - Fungsi-fungsi bisnis
-- `index.html` / `riwayat.html` - Template static
+- `index.html` / `riwayat.html` - Template statis
 
 ## Instalasi
 1. Buat database: `CREATE DATABASE db_pemesanan;`
