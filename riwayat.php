@@ -17,7 +17,7 @@
     <nav class="navbar navbar-light bg-light border-bottom">
         <div class="container-fluid px-4">
             <div class="d-flex align-items-center justify-content-between w-100">
-                <div class="bg-danger text-white rounded p-2 fw-bold fs-5">P</div>
+                <img src="logo.png" alt="Logo" style="height: 40px; width: auto;">
                 <ul class="nav nav-tabs">
                     <li class="nav-item">
                         <a class="nav-link" href="index.php">Pemesanan</a>
@@ -38,10 +38,13 @@
                         <h2 class="mb-4">Riwayat Pemesanan</h2>
                         
                         <?php
-                        include 'koneksi.php';
+                        // Load konfigurasi dan functions
+                        require_once 'config.php';
+                        require_once 'functions.php';
                         
-                        $query = "SELECT * FROM pemesanan ORDER BY id DESC";
-                        $result = mysqli_query($koneksi, $query);
+                        // Ambil data pemesanan
+                        $result = getPemesanans($koneksi);
+                        $pemesanans = $result['data'];
                         ?>
 
                         <div class="table-responsive">
@@ -60,33 +63,19 @@
                                 </thead>
                                 <tbody>
                                     <?php
-                                    if (mysqli_num_rows($result) > 0) {
-                                        while ($row = mysqli_fetch_assoc($result)) {
-                                            $tanggal = new DateTime($row['tanggal_sewa']);
-                                            $hari = $tanggal->format('N'); // 1=Senin, 7=Minggu
-                                            
-                                            $jam_mulai = new DateTime($row['jam_mulai']);
-                                            $jam_selesai = new DateTime($row['jam_selesai']);
-                                            $durasi = $jam_selesai->diff($jam_mulai)->h;
-                                            
-                                            // Tentukan tarif
-                                            if ($hari >= 6) { // Weekend (Sabtu=6, Minggu=7)
-                                                $tarif = 500000;
-                                            } else {
-                                                $tarif = 350000;
-                                            }
-                                            
-                                            $total = $tarif * $durasi;
+                                    if (!empty($pemesanans)) {
+                                        foreach ($pemesanans as $row) {
+                                            $total = hitungTotal($row['tanggal_sewa'], $row['jam_mulai'], $row['jam_selesai']);
                                             
                                             echo '<tr>
-                                                    <td>' . $row['id'] . '</td>
+                                                    <td>' . htmlspecialchars($row['id']) . '</td>
                                                     <td>' . htmlspecialchars($row['nama']) . '</td>
                                                     <td>' . htmlspecialchars($row['nomor_hp']) . '</td>
-                                                    <td>' . date('d-m-Y', strtotime($row['tanggal_sewa'])) . '</td>
-                                                    <td>' . $row['jam_mulai'] . '</td>
-                                                    <td>' . $row['jam_selesai'] . '</td>
-                                                    <td>Rp ' . number_format($total, 0, ',', '.') . '</td>
-                                                    <td>' . date('d-m-Y H:i', strtotime($row['created_at'])) . '</td>
+                                                    <td>' . formatTanggal($row['tanggal_sewa']) . '</td>
+                                                    <td>' . htmlspecialchars($row['jam_mulai']) . '</td>
+                                                    <td>' . htmlspecialchars($row['jam_selesai']) . '</td>
+                                                    <td>' . formatRupiah($total) . '</td>
+                                                    <td>' . formatDateTime($row['created_at']) . '</td>
                                                   </tr>';
                                         }
                                     } else {

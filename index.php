@@ -17,7 +17,7 @@
     <nav class="navbar navbar-light bg-light border-bottom">
         <div class="container-fluid px-4">
             <div class="d-flex align-items-center justify-content-between w-100">
-                <div class="bg-danger text-white rounded p-2 fw-bold fs-5">P</div>
+                <img src="logo.png" alt="Logo" style="height: 40px; width: auto;">
                 <ul class="nav nav-tabs">
                     <li class="nav-item">
                         <a class="nav-link active" href="index.php">Pemesanan</a>
@@ -38,106 +38,105 @@
                         <h2 class="mb-4">Pemesanan Lapangan Padel</h2>
 
                         <?php
-                        include 'koneksi.php';
-                        
+                        // Load konfigurasi dan functions
+                        require_once 'config.php';
+                        require_once 'functions.php';
+
                         $pesan = '';
                         $tipe_pesan = '';
                         $total_harga = 0;
                         $tampil_total = false;
+                        $form_data = [];
+                        $errors = [];
 
-                        if (isset($_POST['submit'])) {
-                            $nama = $_POST['nama'] ?? '';
-                            $nomor_hp = $_POST['nomor_hp'] ?? '';
-                            $tanggal_sewa = $_POST['tanggal_sewa'] ?? '';
-                            $jam_mulai = $_POST['jam_mulai'] ?? '';
-                            $jam_selesai = $_POST['jam_selesai'] ?? '';
+                        // Proses form submit
+                        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                            $nama = trim($_POST['nama'] ?? '');
+                            $nomor_hp = trim($_POST['nomor_hp'] ?? '');
+                            $tanggal_sewa = trim($_POST['tanggal_sewa'] ?? '');
+                            $jam_mulai = trim($_POST['jam_mulai'] ?? '');
+                            $jam_selesai = trim($_POST['jam_selesai'] ?? '');
 
-                            if ($nama && $nomor_hp && $tanggal_sewa && $jam_mulai && $jam_selesai) {
-                                // Hitung total tagihan
-                                $tanggal = new DateTime($tanggal_sewa);
-                                $hari = $tanggal->format('N'); // 1=Senin, 7=Minggu
+                            // Simpan data form untuk re-populate
+                            $form_data = [
+                                'nama' => $nama,
+                                'nomor_hp' => $nomor_hp,
+                                'tanggal_sewa' => $tanggal_sewa,
+                                'jam_mulai' => $jam_mulai,
+                                'jam_selesai' => $jam_selesai
+                            ];
 
-                                // Tentukan tarif
-                                if ($hari >= 6) { // Weekend (Sabtu=6, Minggu=7)
-                                    $tarif = 500000;
+                            // Validasi input
+                            $errors = validateInput($nama, $nomor_hp, $tanggal_sewa, $jam_mulai, $jam_selesai);
+
+                            if (empty($errors)) {
+                                // Hitung total
+                                $total_harga = hitungTotal($tanggal_sewa, $jam_mulai, $jam_selesai);
+
+                                // Simpan ke database
+                                $result = savePemesanan($koneksi, $nama, $nomor_hp, $tanggal_sewa, $jam_mulai, $jam_selesai);
+
+                                if ($result['status']) {
+                                    $pesan = $result['message'];
+                                    $tipe_pesan = 'success';
+                                    $tampil_total = true;
+                                    $form_data = []; // Kosongkan form
                                 } else {
-                                    $tarif = 350000;
+                                    $pesan = $result['message'];
+                                    $tipe_pesan = 'danger';
                                 }
-
-                                // Hitung durasi
-                                $jam_mulai_obj = new DateTime('2000-01-01 ' . $jam_mulai);
-                                $jam_selesai_obj = new DateTime('2000-01-01 ' . $jam_selesai);
-                                $durasi_menit = $jam_selesai_obj->diff($jam_mulai_obj)->i;
-                                $durasi_jam = $jam_selesai_obj->diff($jam_mulai_obj)->h;
-                                
-                                // Jika ada sisa menit, bulatkan ke atas
-                                if ($durasi_menit > 0) {
-                                    $durasi_jam += 1;
-                                }
-
-                                if ($durasi_jam > 0) {
-                                    $total_harga = $tarif * $durasi_jam;
-                                    
-                                    // Simpan ke database
-                                    $query = "INSERT INTO pemesanan (nama, nomor_hp, tanggal_sewa, jam_mulai, jam_selesai) 
-                                             VALUES ('$nama', '$nomor_hp', '$tanggal_sewa', '$jam_mulai', '$jam_selesai')";
-                                    $sql = mysqli_query($koneksi, $query);
-                                    
-                                    if ($sql) {
-                                        $pesan = "Pemesanan Berhasil Disimpan!";
-                                        $tipe_pesan = "success";
-                                        $tampil_total = true;
-                                        // Kosongkan form
-                                        $_POST = array();
-                                    } else {
-                                        $pesan = "Gagal Menyimpan Pemesanan: " . mysqli_error($koneksi);
-                                        $tipe_pesan = "danger";
-                                    }
-                                } else {
-                                    $pesan = "Jam selesai harus lebih besar dari jam mulai!";
-                                    $tipe_pesan = "warning";
-                                }
-                            } else {
-                                $pesan = "Semua field harus diisi!";
-                                $tipe_pesan = "warning";
                             }
                         }
 
+                        // Tampilkan alert pesan
                         if ($pesan) {
-                            echo '<div class="alert alert-' . $tipe_pesan . ' alert-dismissible fade show" role="alert">
-                                    ' . $pesan . '
+                            echo '<div class="alert alert-' . htmlspecialchars($tipe_pesan) . ' alert-dismissible fade show" role="alert">
+                                    ' . htmlspecialchars($pesan) . '
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                  </div>';
+                        }
+
+                        // Tampilkan error validasi
+                        if (!empty($errors)) {
+                            echo '<div class="alert alert-warning alert-dismissible fade show" role="alert">
+                                    <strong>Terjadi Kesalahan:</strong>
+                                    <ul class="mb-0 mt-2">';
+                            foreach ($errors as $error) {
+                                echo '<li>' . htmlspecialchars($error) . '</li>';
+                            }
+                            echo '</ul>
                                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                                   </div>';
                         }
                         ?>
 
-                        <form action="" method="post">
+                        <form action="" method="POST">
                             <div class="form-group mb-3">
                                 <label for="nama" class="form-label">Nama</label>
-                                <input type="text" name="nama" id="nama" class="form-control" placeholder="Masukkan nama" value="<?php echo isset($_POST['nama']) ? htmlspecialchars($_POST['nama']) : ''; ?>" required>
+                                <input type="text" name="nama" id="nama" class="form-control" placeholder="Masukkan nama" value="<?php echo htmlspecialchars($form_data['nama'] ?? ''); ?>" required>
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="nomor_hp" class="form-label">Nomor HP</label>
-                                <input type="tel" name="nomor_hp" id="nomor_hp" class="form-control" placeholder="Contoh: 08123456789" value="<?php echo isset($_POST['nomor_hp']) ? htmlspecialchars($_POST['nomor_hp']) : ''; ?>" required>
+                                <input type="tel" name="nomor_hp" id="nomor_hp" class="form-control" placeholder="Contoh: 08123456789" value="<?php echo htmlspecialchars($form_data['nomor_hp'] ?? ''); ?>" required>
                             </div>
 
                             <div class="form-group mb-3">
                                 <label for="tanggal_sewa" class="form-label">Tanggal Sewa</label>
-                                <input type="date" name="tanggal_sewa" id="tanggal_sewa" class="form-control" value="<?php echo isset($_POST['tanggal_sewa']) ? htmlspecialchars($_POST['tanggal_sewa']) : ''; ?>" required>
+                                <input type="date" name="tanggal_sewa" id="tanggal_sewa" class="form-control" value="<?php echo htmlspecialchars($form_data['tanggal_sewa'] ?? ''); ?>" required>
                             </div>
 
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-group mb-3">
                                         <label for="jam_mulai" class="form-label">Jam Mulai</label>
-                                        <input type="time" name="jam_mulai" id="jam_mulai" class="form-control" value="<?php echo isset($_POST['jam_mulai']) ? htmlspecialchars($_POST['jam_mulai']) : ''; ?>" required>
+                                        <input type="time" name="jam_mulai" id="jam_mulai" class="form-control" value="<?php echo htmlspecialchars($form_data['jam_mulai'] ?? ''); ?>" required>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="form-group mb-3">
                                         <label for="jam_selesai" class="form-label">Jam Selesai</label>
-                                        <input type="time" name="jam_selesai" id="jam_selesai" class="form-control" value="<?php echo isset($_POST['jam_selesai']) ? htmlspecialchars($_POST['jam_selesai']) : ''; ?>" required>
+                                        <input type="time" name="jam_selesai" id="jam_selesai" class="form-control" value="<?php echo htmlspecialchars($form_data['jam_selesai'] ?? ''); ?>" required>
                                     </div>
                                 </div>
                             </div>
@@ -148,7 +147,7 @@
                             </div>
 
                             <div class="d-grid gap-2">
-                                <button type="submit" name="submit" class="btn btn-info">Submit</button>
+                                <button type="submit" class="btn btn-info">Submit</button>
                             </div>
                         </form>
 
@@ -158,7 +157,7 @@
                         <h5 class="mb-3">Total Tagihan</h5>
                         <div class="card bg-light mb-4">
                             <div class="card-body">
-                                <p class="mb-0"><strong>Total: <span class="text-success"><?php echo 'Rp ' . number_format($total_harga, 0, ',', '.'); ?></span></strong></p>
+                                <p class="mb-0"><strong>Total: <span class="text-success"><?php echo formatRupiah($total_harga); ?></span></strong></p>
                             </div>
                         </div>
                         <?php endif; ?>
